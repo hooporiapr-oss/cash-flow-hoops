@@ -1,0 +1,534 @@
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, TrendingUp, TrendingDown, DollarSign, LogOut, User } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+
+export default function CashFlowTracker() {
+const [isLoggedIn, setIsLoggedIn] = useState(false);
+const [currentUser, setCurrentUser] = useState(null);
+const [isSignUp, setIsSignUp] = useState(false);
+const [showSignups, setShowSignups] = useState(false);
+
+// Auth form states
+const [username, setUsername] = useState('');
+const [password, setPassword] = useState('');
+const [confirmPassword, setConfirmPassword] = useState('');
+const [authError, setAuthError] = useState('');
+
+// Transaction states
+const [transactions, setTransactions] = useState([]);
+const [description, setDescription] = useState('');
+const [amount, setAmount] = useState('');
+const [type, setType] = useState('income');
+const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+// Mock user database (in real app, this would be server-side)
+const [users, setUsers] = useState({});
+const [signupLog, setSignupLog] = useState([]);
+
+// Admin username - only this user can view signups
+const ADMIN_USERNAME = 'admin';
+
+const handleSignUp = () => {
+setAuthError('');
+
+if (!username || !password) {
+setAuthError('Please fill in all fields');
+return;
+}
+
+if (password !== confirmPassword) {
+setAuthError('Passwords do not match');
+return;
+}
+
+if (users[username]) {
+setAuthError('Username already exists');
+return;
+}
+
+const signupTime = new Date().toLocaleString();
+setUsers({...users, [username]: { password, transactions: [], signupDate: signupTime }});
+setSignupLog([...signupLog, { username, signupDate: signupTime }]);
+setCurrentUser(username);
+setIsLoggedIn(true);
+setTransactions([]);
+setUsername('');
+setPassword('');
+setConfirmPassword('');
+};
+
+const handleSignIn = () => {
+setAuthError('');
+
+if (!username || !password) {
+setAuthError('Please fill in all fields');
+return;
+}
+
+if (!users[username]) {
+setAuthError('User not found');
+return;
+}
+
+if (users[username].password !== password) {
+setAuthError('Incorrect password');
+return;
+}
+
+setCurrentUser(username);
+setIsLoggedIn(true);
+setTransactions(users[username].transactions || []);
+setUsername('');
+setPassword('');
+};
+
+const handleLogout = () => {
+// Save transactions before logout
+if (currentUser) {
+setUsers({...users, [currentUser]: { ...users[currentUser], transactions }});
+}
+setIsLoggedIn(false);
+setCurrentUser(null);
+setTransactions([]);
+};
+
+const addTransaction = () => {
+if (!description || !amount) return;
+
+const newTransaction = {
+id: Date.now(),
+description,
+amount: parseFloat(amount),
+type,
+date
+};
+
+const updatedTransactions = [...transactions, newTransaction];
+setTransactions(updatedTransactions);
+
+// Save to user data
+setUsers({...users, [currentUser]: { ...users[currentUser], transactions: updatedTransactions }});
+
+setDescription('');
+setAmount('');
+};
+
+const deleteTransaction = (id) => {
+const updatedTransactions = transactions.filter(t => t.id !== id);
+setTransactions(updatedTransactions);
+
+// Save to user data
+setUsers({...users, [currentUser]: { ...users[currentUser], transactions: updatedTransactions }});
+};
+
+const totalIncome = transactions
+.filter(t => t.type === 'income')
+.reduce((sum, t) => sum + t.amount, 0);
+
+const totalExpenses = transactions
+.filter(t => t.type === 'expense')
+.reduce((sum, t) => sum + t.amount, 0);
+
+const netCashFlow = totalIncome - totalExpenses;
+
+// Chart data preparation
+const pieData = [
+{ name: 'Income', value: totalIncome, color: '#f97316' },
+{ name: 'Expenses', value: totalExpenses, color: '#1e293b' }
+];
+
+// Monthly data for line chart
+const getMonthlyData = () => {
+const monthlyMap = {};
+
+transactions.forEach(t => {
+const month = t.date.substring(0, 7); // YYYY-MM
+if (!monthlyMap[month]) {
+monthlyMap[month] = { month, income: 0, expenses: 0 };
+}
+if (t.type === 'income') {
+monthlyMap[month].income += t.amount;
+} else {
+monthlyMap[month].expenses += t.amount;
+}
+});
+
+return Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+};
+
+const monthlyData = getMonthlyData();
+
+// Sign In/Up Page
+if (!isLoggedIn) {
+return (
+<div className="min-h-screen bg-gradient-to-br from-orange-500 via-orange-600 to-slate-800 p-6 relative overflow-hidden">
+{/* Basketball texture overlay */}
+<div className="absolute inset-0 opacity-10" style={{
+backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(0,0,0,.1) 35px, rgba(0,0,0,.1) 70px)`
+}}></div>
+
+<div className="max-w-md mx-auto relative z-10">
+<div className="bg-slate-900 rounded-3xl shadow-2xl p-8 border-4 border-orange-500">
+<div className="text-center mb-8">
+{/* Basketball icon */}
+<div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full mb-4 relative shadow-xl border-4 border-slate-800">
+<div className="absolute inset-0 rounded-full" style={{
+background: `
+linear-gradient(90deg, transparent 48%, rgba(0,0,0,0.3) 48%, rgba(0,0,0,0.3) 52%, transparent 52%),
+linear-gradient(0deg, transparent 48%, rgba(0,0,0,0.3) 48%, rgba(0,0,0,0.3) 52%, transparent 52%)
+`
+}}></div>
+<div className="absolute inset-2 rounded-full border-2 border-slate-800 opacity-40"></div>
+<DollarSign className="text-white z-10" size={40} />
+</div>
+<h1 className="text-4xl font-black text-white mb-2 tracking-tight" style={{textShadow: '3px 3px 0px rgba(249, 115, 22, 0.5)'}}>
+CASH FLOW HOOPS
+</h1>
+<p className="text-orange-300 font-semibold text-lg">Score Big With Your Money</p>
+</div>
+
+<div className="mb-6">
+<div className="flex border-b-2 border-orange-500">
+<button
+onClick={() => {
+setIsSignUp(false);
+setAuthError('');
+}}
+className={`flex-1 py-3 text-center font-bold transition text-lg ${
+!isSignUp ? 'text-orange-500 border-b-4 border-orange-500 -mb-0.5' : 'text-slate-400'
+}`}
+>
+SIGN IN
+</button>
+<button
+onClick={() => {
+setIsSignUp(true);
+setAuthError('');
+}}
+className={`flex-1 py-3 text-center font-bold transition text-lg ${
+isSignUp ? 'text-orange-500 border-b-4 border-orange-500 -mb-0.5' : 'text-slate-400'
+}`}
+>
+SIGN UP
+</button>
+</div>
+</div>
+
+{authError && (
+<div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg text-red-100 text-sm font-semibold">
+{authError}
+</div>
+)}
+
+<div className="space-y-4">
+<div>
+<label className="block text-sm font-bold text-orange-400 mb-2 uppercase tracking-wide">Username</label>
+<input
+type="text"
+value={username}
+onChange={(e) => setUsername(e.target.value)}
+className="w-full px-4 py-3 bg-slate-800 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+placeholder="Enter your username"
+/>
+</div>
+
+<div>
+<label className="block text-sm font-bold text-orange-400 mb-2 uppercase tracking-wide">Password</label>
+<input
+type="password"
+value={password}
+onChange={(e) => setPassword(e.target.value)}
+className="w-full px-4 py-3 bg-slate-800 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+placeholder="Enter your password"
+/>
+</div>
+
+{isSignUp && (
+<div>
+<label className="block text-sm font-bold text-orange-400 mb-2 uppercase tracking-wide">Confirm Password</label>
+<input
+type="password"
+value={confirmPassword}
+onChange={(e) => setConfirmPassword(e.target.value)}
+className="w-full px-4 py-3 bg-slate-800 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+placeholder="Confirm your password"
+/>
+</div>
+)}
+
+<button
+onClick={isSignUp ? handleSignUp : handleSignIn}
+className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-lg hover:from-orange-600 hover:to-orange-700 transition font-black text-lg uppercase tracking-wide shadow-lg border-2 border-orange-400"
+>
+{isSignUp ? '🏀 Join The Team' : '🏀 Enter The Court'}
+</button>
+</div>
+
+<p className="text-center text-sm text-slate-400 mt-6">
+{isSignUp ? 'Already on the roster?' : "New player?"}{' '}
+<button
+onClick={() => {
+setIsSignUp(!isSignUp);
+setAuthError('');
+}}
+className="text-orange-500 font-bold hover:underline"
+>
+{isSignUp ? 'Sign In' : 'Sign Up'}
+</button>
+</p>
+</div>
+</div>
+</div>
+);
+}
+
+// Main Dashboard (when logged in)
+return (
+<div className="min-h-screen bg-gradient-to-br from-orange-500 via-orange-600 to-slate-800 p-6 relative overflow-hidden">
+{/* Basketball court lines pattern */}
+<div className="absolute inset-0 opacity-5" style={{
+backgroundImage: `
+repeating-linear-gradient(90deg, transparent, transparent 100px, rgba(255,255,255,0.3) 100px, rgba(255,255,255,0.3) 102px),
+repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(255,255,255,0.3) 100px, rgba(255,255,255,0.3) 102px)
+`
+}}></div>
+
+<div className="max-w-6xl mx-auto relative z-10">
+<div className="bg-slate-900 rounded-3xl shadow-2xl p-6 mb-6 border-4 border-orange-500">
+<div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+<h1 className="text-4xl font-black text-white flex items-center gap-3">
+<div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center relative shadow-lg border-2 border-slate-800">
+<div className="absolute inset-0 rounded-full" style={{
+background: `
+linear-gradient(90deg, transparent 45%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.3) 55%, transparent 55%),
+linear-gradient(0deg, transparent 45%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.3) 55%, transparent 55%)
+`
+}}></div>
+<DollarSign className="text-white z-10" size={24} />
+</div>
+<span style={{textShadow: '3px 3px 0px rgba(249, 115, 22, 0.5)'}}>CASH FLOW HOOPS</span>
+</h1>
+<div className="flex items-center gap-4 flex-wrap">
+{currentUser === ADMIN_USERNAME && (
+<button
+onClick={() => setShowSignups(!showSignups)}
+className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition text-white font-bold border-2 border-orange-400 shadow-lg"
+>
+{showSignups ? '👁️ HIDE' : '👁️ VIEW'} ROSTER ({signupLog.length})
+</button>
+)}
+<div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-lg border-2 border-orange-500">
+<User size={20} className="text-orange-500" />
+<span className="font-bold text-white">{currentUser}</span>
+{currentUser === ADMIN_USERNAME && (
+<span className="ml-2 px-2 py-1 bg-orange-500 text-white text-xs font-black rounded uppercase">Coach</span>
+)}
+</div>
+<button
+onClick={handleLogout}
+className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition text-orange-500 font-bold border-2 border-orange-500"
+>
+<LogOut size={18} />
+EXIT
+</button>
+</div>
+</div>
+
+{/* Signup Log Section - Only visible to admin */}
+{showSignups && currentUser === ADMIN_USERNAME && (
+<div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-6 mb-6 border-4 border-slate-800 shadow-xl">
+<h2 className="text-2xl font-black text-white mb-4 flex items-center gap-2 uppercase">
+<User className="text-slate-900" />
+Team Roster
+</h2>
+{signupLog.length === 0 ? (
+<p className="text-white text-center py-4 font-semibold">No players signed up yet</p>
+) : (
+<div className="space-y-2">
+{signupLog.slice().reverse().map((signup, index) => (
+<div key={index} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between shadow-lg border-2 border-slate-800">
+<div className="flex items-center gap-3">
+<div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-black text-xl border-2 border-slate-800">
+{signup.username.charAt(0).toUpperCase()}
+</div>
+<div>
+<p className="font-black text-white uppercase">{signup.username}</p>
+<p className="text-sm text-orange-400 font-semibold">Joined: {signup.signupDate}</p>
+</div>
+</div>
+<span className="px-3 py-1 bg-orange-500 text-white rounded-full text-sm font-black uppercase border-2 border-orange-400">
+Rookie
+</span>
+</div>
+))}
+</div>
+)}
+</div>
+)}
+
+{/* Summary Cards */}
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+<div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-5 border-4 border-slate-800 shadow-xl">
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm text-green-100 font-bold uppercase tracking-wide">Total Income</p>
+<p className="text-3xl font-black text-white">
+${totalIncome.toFixed(2)}
+</p>
+</div>
+<TrendingUp className="text-white" size={40} />
+</div>
+</div>
+
+<div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-5 border-4 border-slate-800 shadow-xl">
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm text-red-100 font-bold uppercase tracking-wide">Total Expenses</p>
+<p className="text-3xl font-black text-white">
+${totalExpenses.toFixed(2)}
+</p>
+</div>
+<TrendingDown className="text-white" size={40} />
+</div>
+</div>
+
+<div className={`rounded-2xl p-5 border-4 border-slate-800 shadow-xl ${netCashFlow >= 0 ? 'bg-gradient-to-br from-orange-500 to-orange-600' : 'bg-gradient-to-br from-yellow-500 to-yellow-600'}`}>
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm text-white font-bold uppercase tracking-wide">Net Score</p>
+<p className="text-3xl font-black text-white">
+${netCashFlow.toFixed(2)}
+</p>
+</div>
+<DollarSign className="text-white" size={40} />
+</div>
+</div>
+</div>
+
+{/* Charts Section */}
+{transactions.length > 0 && (
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+{/* Pie Chart */}
+<div className="bg-slate-800 rounded-2xl p-5 border-4 border-orange-500 shadow-xl">
+<h2 className="text-xl font-black text-white mb-4 uppercase tracking-wide">Score Breakdown</h2>
+<ResponsiveContainer width="100%" height={250}>
+<PieChart>
+<Pie
+data={pieData}
+cx="50%"
+cy="50%"
+labelLine={false}
+label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+outerRadius={80}
+fill="#8884d8"
+dataKey="value"
+>
+{pieData.map((entry, index) => (
+<Cell key={`cell-${index}`} fill={entry.color} />
+))}
+</Pie>
+<Tooltip formatter={(value) => `$${value.toFixed(2)}`} contentStyle={{backgroundColor: '#1e293b', border: '2px solid #f97316', borderRadius: '8px', fontWeight: 'bold'}} />
+</PieChart>
+</ResponsiveContainer>
+</div>
+
+{/* Monthly Trend Chart */}
+<div className="bg-slate-800 rounded-2xl p-5 border-4 border-orange-500 shadow-xl">
+<h2 className="text-xl font-black text-white mb-4 uppercase tracking-wide">Season Stats</h2>
+<ResponsiveContainer width="100%" height={250}>
+<LineChart data={monthlyData}>
+<CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+<XAxis dataKey="month" stroke="#f97316" style={{fontWeight: 'bold'}} />
+<YAxis stroke="#f97316" style={{fontWeight: 'bold'}} />
+<Tooltip formatter={(value) => `$${value.toFixed(2)}`} contentStyle={{backgroundColor: '#1e293b', border: '2px solid #f97316', borderRadius: '8px', fontWeight: 'bold'}} />
+<Legend wrapperStyle={{fontWeight: 'bold'}} />
+<Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Income" />
+<Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={3} name="Expenses" />
+</LineChart>
+</ResponsiveContainer>
+</div>
+</div>
+)}
+
+{/* Add Transaction Form */}
+<div className="bg-slate-800 rounded-2xl p-5 mb-6 border-4 border-orange-500 shadow-xl">
+<h2 className="text-xl font-black text-white mb-4 uppercase tracking-wide">🏀 Make A Play</h2>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<input
+type="text"
+placeholder="Description"
+value={description}
+onChange={(e) => setDescription(e.target.value)}
+className="px-4 py-3 bg-slate-900 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+/>
+<input
+type="number"
+placeholder="Amount"
+value={amount}
+onChange={(e) => setAmount(e.target.value)}
+className="px-4 py-3 bg-slate-900 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+step="0.01"
+/>
+<select
+value={type}
+onChange={(e) => setType(e.target.value)}
+className="px-4 py-3 bg-slate-900 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-bold"
+>
+<option value="income">💰 INCOME</option>
+<option value="expense">💸 EXPENSE</option>
+</select>
+<input
+type="date"
+value={date}
+onChange={(e) => setDate(e.target.value)}
+className="px-4 py-3 bg-slate-900 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-white font-semibold"
+/>
+</div>
+<button
+onClick={addTransaction}
+className="mt-4 w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-lg hover:from-orange-600 hover:to-orange-700 transition flex items-center justify-center gap-2 font-black text-lg uppercase border-2 border-orange-400 shadow-lg"
+>
+<PlusCircle size={24} />
+Add To Scoreboard
+</button>
+</div>
+
+{/* Transactions List */}
+<div>
+<h2 className="text-2xl font-black text-white mb-4 uppercase tracking-wide">📊 Game Log</h2>
+{transactions.length === 0 ? (
+<p className="text-orange-400 text-center py-8 font-bold text-lg bg-slate-800 rounded-2xl border-4 border-orange-500">No plays recorded yet. Start your first quarter!</p>
+) : (
+<div className="space-y-3 max-h-96 overflow-y-auto">
+{transactions.sort((a, b) => new Date(b.date) - new Date(a.date)).map(transaction => (
+<div
+key={transaction.id}
+className={`flex items-center justify-between p-4 rounded-xl border-4 shadow-lg ${
+transaction.type === 'income' ? 'bg-green-500 border-slate-800' : 'bg-red-500 border-slate-800'
+}`}
+>
+<div className="flex-1">
+<p className="font-black text-white text-lg uppercase">{transaction.description}</p>
+<p className="text-sm text-white font-semibold">{transaction.date}</p>
+</div>
+<div className="flex items-center gap-4">
+<span className="text-2xl font-black text-white">
+{transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+</span>
+<button
+onClick={() => deleteTransaction(transaction.id)}
+className="bg-slate-900 text-white px-3 py-2 rounded-lg hover:bg-slate-800 text-sm font-bold border-2 border-slate-800"
+>
+✖
+</button>
+</div>
+</div>
+))}
+</div>
+)}
+</div>
+</div>
+</div>
+</div>
+);
+}
